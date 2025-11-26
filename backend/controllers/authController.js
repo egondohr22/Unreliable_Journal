@@ -5,7 +5,6 @@ const { validationResult } = require('express-validator');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 const JWT_EXPIRES_IN = '7d';
 
-// Register new user
 const register = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -15,17 +14,14 @@ const register = async (req, res) => {
 
     const { email, password, name } = req.body;
 
-    // Check if user already exists
     let user = await User.findOne({ email });
     if (user) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Create new user
     user = new User({ email, password, name });
     await user.save();
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id },
       JWT_SECRET,
@@ -46,7 +42,6 @@ const register = async (req, res) => {
   }
 };
 
-// Login user
 const login = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -56,19 +51,16 @@ const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user._id },
       JWT_SECRET,
@@ -89,7 +81,6 @@ const login = async (req, res) => {
   }
 };
 
-// Get current user
 const getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');

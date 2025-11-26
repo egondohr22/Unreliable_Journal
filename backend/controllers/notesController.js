@@ -3,7 +3,6 @@ const { handleError, sendNotFound, sendBadRequest } = require('../helpers/respon
 
 const getAllNotes = async (req, res) => {
   try {
-    // Get userId from auth middleware
     const userId = req.userId;
     const notes = await Note.find({ userId }).sort({ createdAt: -1 });
     res.json(notes);

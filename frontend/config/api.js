@@ -17,7 +17,7 @@ const getBaseUrl = () => {
   return LOCAL_API_URL;
 };
 
-const API_BASE_URL = getBaseUrl();
+const API_BASE_URL = 'https://unreliable-journal.onrender.com' ||getBaseUrl();
 
 console.log(`API Mode: ${API_MODE || 'local'}`);
 console.log(`API Base URL: ${API_BASE_URL}`);
