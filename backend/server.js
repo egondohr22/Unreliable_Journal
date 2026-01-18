@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const notesRoutes = require('./routes/notes');
+const userRoutes = require('./routes/user');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/notes', notesRoutes);
+app.use('/user', userRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });

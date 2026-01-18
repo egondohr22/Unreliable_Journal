@@ -18,6 +18,18 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
     trim: true
+  },
+  settings: {
+    theme: {
+      type: String,
+      enum: ['light', 'dark'],
+      default: 'light'
+    },
+    entryChangeRate: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium'
+    }
   }
 }, {
   timestamps: true
