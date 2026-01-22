@@ -1,10 +1,20 @@
 const Note = require('../models/Note');
 const { handleError, sendNotFound, sendBadRequest } = require('../helpers/responseHelper');
+const { markNoteAsNotViewed, markNoteAsViewed, onNoteActivity, cancelNoteModification, hasActiveTimer } = require('../services/noteModificationService');
 
 const getAllNotes = async (req, res) => {
   try {
     const userId = req.userId;
-    const notes = await Note.find({ userId }).sort({ createdAt: -1 });
+    const notes = await Note.find({ userId }).select('_id title createdAt updatedAt').sort({ createdAt: -1 });
+
+    const notesWithoutTimers = notes.filter(note => !hasActiveTimer(note._id.toString()));
+    const shuffled = notesWithoutTimers.sort(() => Math.random() - 0.5);
+    const selectedNotes = shuffled.slice(0, 5);
+
+    selectedNotes.forEach(note => {
+      markNoteAsNotViewed(note._id.toString(), userId);
+    });
+
     res.json(notes);
   } catch (error) {
     handleError(res, error, 'Failed to fetch notes');
@@ -20,6 +30,8 @@ const getNote = async (req, res) => {
     if (!note) {
       return sendNotFound(res, 'Note not found');
     }
+
+    markNoteAsViewed(noteId);
 
     res.json(note);
   } catch (error) {
@@ -44,6 +56,9 @@ const createNote = async (req, res) => {
     });
 
     await note.save();
+
+    onNoteActivity(note._id.toString(), userId);
+
     res.status(201).json(note);
   } catch (error) {
     handleError(res, error, 'Failed to create note');
@@ -68,6 +83,8 @@ const updateNote = async (req, res) => {
       return sendNotFound(res, 'Note not found');
     }
 
+    onNoteActivity(noteId, userId);
+
     res.json(note);
   } catch (error) {
     handleError(res, error, 'Failed to update note');
@@ -84,6 +101,8 @@ const deleteNote = async (req, res) => {
     if (!note) {
       return sendNotFound(res, 'Note not found');
     }
+
+    cancelNoteModification(noteId);
 
     res.json({ message: 'Note deleted successfully', note });
   } catch (error) {
@@ -107,13 +126,32 @@ const deleteNoteById = async (req, res) => {
   }
 };
 
+const leaveNote = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { noteId } = req.params;
+
+    const note = await Note.findOne({ _id: noteId, userId });
+    if (!note) {
+      return sendNotFound(res, 'Note not found');
+    }
+
+    markNoteAsNotViewed(noteId, userId);
+
+    res.json({ message: 'Timer restarted' });
+  } catch (error) {
+    handleError(res, error, 'Failed to leave note');
+  }
+};
+
 module.exports = {
   getAllNotes,
   getNote,
   createNote,
   updateNote,
   deleteNote,
-  deleteNoteById
+  deleteNoteById,
+  leaveNote
 };
 
 const validateNoteData = (title, content) => {

@@ -13,7 +13,25 @@ app.use(cors());
 app.use(express.json());
 
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  const timestamp = new Date().toISOString();
+  const method = req.method;
+  const route = req.path;
+
+  const queryParams = Object.keys(req.query).length > 0 ? JSON.stringify(req.query) : '';
+
+  let bodyParams = '';
+  if (['POST', 'PUT', 'PATCH'].includes(method) && req.body) {
+    const sanitizedBody = { ...req.body };
+    if (sanitizedBody.password) sanitizedBody.password = '***';
+    bodyParams = Object.keys(sanitizedBody).length > 0 ? JSON.stringify(sanitizedBody) : '';
+  }
+
+  const params = queryParams || bodyParams;
+  const logMessage = params
+    ? `${timestamp} - ${method} ${route} ${params}`
+    : `${timestamp} - ${method} ${route}`;
+
+  console.log(logMessage);
   next();
 });
 
@@ -31,7 +49,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/unreliable-journal';
+const MONGODB_URI = process.env.MONGODB_URI
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
@@ -50,6 +68,10 @@ mongoose.connect(MONGODB_URI)
 
 process.on('SIGINT', async () => {
   console.log('\nShutting down gracefully...');
+
+  const { cleanupAllTimers } = require('./services/noteModificationService');
+  cleanupAllTimers();
+
   await mongoose.connection.close();
   console.log('MongoDB connection closed');
   process.exit(0);

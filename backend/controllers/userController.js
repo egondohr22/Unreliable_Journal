@@ -84,6 +84,9 @@ const updateUser = async (req, res) => {
 
 const logout = async (req, res) => {
   try {
+    //doesn't need to be server side at all
+    //right now we only clear session data on phone
+    //but in case you might need some server side logic here
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
     handleError(res, error, 'Failed to logout');
