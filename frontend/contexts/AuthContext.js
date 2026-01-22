@@ -83,17 +83,81 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      if (token) {
+        await fetch(API.ENDPOINTS.USER.LOGOUT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
       setToken(null);
       setUser(null);
+    }
+  };
+
+  const fetchUser = async () => {
+    try {
+      if (!token) return { success: false, error: 'No token' };
+
+      const response = await fetch(API.ENDPOINTS.USER.GET_PROFILE, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch user');
+      }
+
+      setUser(data);
+      await AsyncStorage.setItem('user', JSON.stringify(data));
+
+      return { success: true, user: data };
     } catch (error) {
-      console.error('Error during logout:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateUser = async (updates) => {
+    try {
+      if (!token) return { success: false, error: 'No token' };
+
+      const response = await fetch(API.ENDPOINTS.USER.UPDATE_PROFILE, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updates),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update user');
+      }
+
+      setUser(data);
+      await AsyncStorage.setItem('user', JSON.stringify(data));
+
+      return { success: true, user: data };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, register, login, logout, fetchUser, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

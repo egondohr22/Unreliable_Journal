@@ -13,18 +13,23 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { API, getAuthHeaders } from '../config/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
-export default function NotesScreen() {
+export default function NotesScreen({ onNavigateToSettings }) {
   const { token, user, logout } = useAuth();
+  const { theme, isDark } = useTheme();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingNote, setLoadingNote] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -45,6 +50,22 @@ export default function NotesScreen() {
       Alert.alert('Error', 'Failed to load notes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const response = await fetch(API.ENDPOINTS.NOTES.GET_ALL, {
+        headers: getAuthHeaders(token),
+      });
+      const data = await response.json();
+      setNotes(data);
+    } catch (error) {
+      console.error('Error refreshing notes:', error);
+      Alert.alert('Error', 'Failed to refresh notes');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -126,14 +147,38 @@ export default function NotesScreen() {
     setModalVisible(true);
   };
 
-  const openEditNoteModal = (note) => {
-    setSelectedNote(note);
-    setTitle(note.title);
-    setContent(note.content);
+  const openEditNoteModal = async (note) => {
+    setLoadingNote(true);
     setModalVisible(true);
+    try {
+      const response = await fetch(API.ENDPOINTS.NOTES.GET_ONE(note._id), {
+        headers: getAuthHeaders(token),
+      });
+      const fullNote = await response.json();
+      setSelectedNote(fullNote);
+      setTitle(fullNote.title);
+      setContent(fullNote.content);
+    } catch (error) {
+      console.error('Error fetching note:', error);
+      Alert.alert('Error', 'Failed to load note');
+      setModalVisible(false);
+    } finally {
+      setLoadingNote(false);
+    }
   };
 
-  const closeModal = () => {
+  const closeModal = async () => {
+    // Restart timer if we were viewing an existing note
+    if (selectedNote?._id) {
+      try {
+        await fetch(API.ENDPOINTS.NOTES.LEAVE(selectedNote._id), {
+          method: 'POST',
+          headers: getAuthHeaders(token),
+        });
+      } catch (error) {
+        console.error('Error leaving note:', error);
+      }
+    }
     setModalVisible(false);
     setSelectedNote(null);
     setTitle('');
@@ -167,50 +212,47 @@ export default function NotesScreen() {
 
   const renderNote = ({ item }) => (
     <TouchableOpacity
-      style={styles.noteCard}
+      style={[styles.noteCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={() => openEditNoteModal(item)}
       onLongPress={() => deleteNote(item._id)}
     >
-      <Text style={styles.noteTitle}>{item.title}</Text>
-      <Text style={styles.noteContent} numberOfLines={2}>
-        {item.content}
-      </Text>
-      <Text style={styles.noteDate}>{formatDate(item.createdAt)}</Text>
+      <Text style={[styles.noteTitle, { color: theme.text }]}>{item.title}</Text>
+      <Text style={[styles.noteDate, { color: theme.textTertiary }]}>{formatDate(item.createdAt)}</Text>
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#000" />
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={theme.statusBar} />
 
       <View style={styles.topPadding} />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Notes</Text>
-          {user && <Text style={styles.userName}>{user.name}</Text>}
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Notes</Text>
+          {user && <Text style={[styles.userName, { color: theme.textSecondary }]}>{user.name}</Text>}
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, { backgroundColor: theme.primary }]}
             onPress={openNewNoteModal}
           >
-            <Text style={styles.addButtonText}>+</Text>
+            <Text style={[styles.addButtonText, { color: theme.primaryText }]}>+</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={logout}
+            style={[styles.settingsButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={onNavigateToSettings}
           >
-            <Text style={styles.logoutButtonText}>Logout</Text>
+            <Text style={[styles.settingsButtonText, { color: theme.text }]}>...</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -218,8 +260,8 @@ export default function NotesScreen() {
       {/* Notes List */}
       {notes.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No notes yet</Text>
-          <Text style={styles.emptySubtext}>Tap + to create your first note</Text>
+          <Text style={[styles.emptyText, { color: theme.textTertiary }]}>No notes yet</Text>
+          <Text style={[styles.emptySubtext, { color: theme.textMuted }]}>Tap + to create your first note</Text>
         </View>
       ) : (
         <FlatList
@@ -227,6 +269,14 @@ export default function NotesScreen() {
           renderItem={renderNote}
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.text}
+              colors={[theme.text]}
+            />
+          }
         />
       )}
 
@@ -237,44 +287,50 @@ export default function NotesScreen() {
         presentationStyle="pageSheet"
         onRequestClose={closeModal}
       >
-        <SafeAreaView style={styles.modalContainer}>
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background }]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.modalContent}
           >
             {/* Modal Header */}
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
               <TouchableOpacity onPress={closeModal}>
-                <Text style={styles.modalButton}>Cancel</Text>
+                <Text style={[styles.modalButton, { color: theme.accent }]}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>
                 {selectedNote ? 'Edit Note' : 'New Note'}
               </Text>
               <TouchableOpacity onPress={handleSave}>
-                <Text style={[styles.modalButton, styles.saveButton]}>Save</Text>
+                <Text style={[styles.modalButton, styles.saveButton, { color: theme.accent }]}>Save</Text>
               </TouchableOpacity>
             </View>
 
             {/* Note Editor */}
-            <View style={styles.editorContainer}>
-              <TextInput
-                style={styles.titleInput}
-                placeholder="Title"
-                placeholderTextColor="#999"
-                value={title}
-                onChangeText={setTitle}
-                autoFocus
-              />
-              <TextInput
-                style={styles.contentInput}
-                placeholder="Start writing..."
-                placeholderTextColor="#999"
-                value={content}
-                onChangeText={setContent}
-                multiline
-                textAlignVertical="top"
-              />
-            </View>
+            {loadingNote ? (
+              <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+                <ActivityIndicator size="large" color={theme.text} />
+              </View>
+            ) : (
+              <View style={styles.editorContainer}>
+                <TextInput
+                  style={[styles.titleInput, { color: theme.text }]}
+                  placeholder="Title"
+                  placeholderTextColor={theme.textTertiary}
+                  value={title}
+                  onChangeText={setTitle}
+                  autoFocus={!selectedNote}
+                />
+                <TextInput
+                  style={[styles.contentInput, { color: theme.text }]}
+                  placeholder="Start writing..."
+                  placeholderTextColor={theme.textTertiary}
+                  value={content}
+                  onChangeText={setContent}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </View>
+            )}
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -285,7 +341,6 @@ export default function NotesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   topPadding: {
     height: 40,
@@ -294,7 +349,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
@@ -303,7 +357,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
   },
   headerLeft: {
     flex: 1,
@@ -316,64 +369,51 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#000',
   },
   userName: {
     fontSize: 14,
-    color: '#666',
     marginTop: 4,
   },
-  logoutButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  logoutButtonText: {
-    fontSize: 14,
-    color: '#000',
-    fontWeight: '500',
+  settingsButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 2,
   },
   addButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addButtonText: {
     fontSize: 28,
-    color: '#FFF',
     fontWeight: '300',
   },
   listContainer: {
     padding: 20,
   },
   noteCard: {
-    backgroundColor: '#F9F9F9',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
   },
   noteTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
-    marginBottom: 8,
-  },
-  noteContent: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
     marginBottom: 8,
   },
   noteDate: {
     fontSize: 12,
-    color: '#999',
   },
   emptyContainer: {
     flex: 1,
@@ -384,16 +424,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#999',
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#BBB',
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   modalContent: {
     flex: 1,
@@ -405,16 +442,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
   },
   modalButton: {
     fontSize: 16,
-    color: '#007AFF',
   },
   saveButton: {
     fontWeight: '600',
@@ -426,14 +460,12 @@ const styles = StyleSheet.create({
   titleInput: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000',
     marginBottom: 16,
     paddingVertical: 8,
   },
   contentInput: {
     flex: 1,
     fontSize: 16,
-    color: '#000',
     lineHeight: 24,
   },
 });

@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import NotesScreen from './screens/NotesScreen';
+import SettingsScreen from './screens/SettingsScreen';
 
 function AppContent() {
   const { token, loading } = useAuth();
+  const { theme } = useTheme();
   const [showRegister, setShowRegister] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#000" />
+      <View style={[styles.centerContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.text} />
       </View>
     );
   }
@@ -24,13 +28,19 @@ function AppContent() {
     return <LoginScreen onNavigateToRegister={() => setShowRegister(true)} />;
   }
 
-  return <NotesScreen />;
+  if (showSettings) {
+    return <SettingsScreen onBack={() => setShowSettings(false)} />;
+  }
+
+  return <NotesScreen onNavigateToSettings={() => setShowSettings(true)} />;
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </AuthProvider>
   );
 }
@@ -40,6 +50,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
   },
 });

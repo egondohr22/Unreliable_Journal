@@ -17,7 +17,7 @@ const getBaseUrl = () => {
   return LOCAL_API_URL;
 };
 
-const API_BASE_URL = 'https://unreliable-journal.onrender.com' ||getBaseUrl();
+const API_BASE_URL = getBaseUrl();
 
 console.log(`API Mode: ${API_MODE || 'local'}`);
 console.log(`API Base URL: ${API_BASE_URL}`);
@@ -37,6 +37,12 @@ export const API = {
       CREATE: `${API_BASE_URL}/notes`,
       UPDATE: (noteId) => `${API_BASE_URL}/notes/${noteId}`,
       DELETE: (noteId) => `${API_BASE_URL}/notes/${noteId}`,
+      LEAVE: (noteId) => `${API_BASE_URL}/notes/${noteId}/leave`,
+    },
+    USER: {
+      GET_PROFILE: `${API_BASE_URL}/user/profile`,
+      UPDATE_PROFILE: `${API_BASE_URL}/user/profile`,
+      LOGOUT: `${API_BASE_URL}/user/logout`,
     }
   }
 };
